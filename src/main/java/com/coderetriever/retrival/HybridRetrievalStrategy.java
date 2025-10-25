@@ -20,21 +20,23 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
     private final KeywordRetrievalStrategy keywordStrategy;
     private final DependencyRetrievalStrategy dependencyStrategy;
     private final EmbeddingRetrievalStrategy embeddingStrategy;
+    private final boolean useEmbeddings;
     
     // Težine za različite strategije
     private final double keywordWeight = 0.3;
     private final double dependencyWeight = 0.2;
     private final double embeddingWeight = 0.5;
 
-    public HybridRetrievalStrategy(LLMClient llmClient) {
+    public HybridRetrievalStrategy(LLMClient llmClient, boolean useEmbeddings) {
         this.keywordStrategy = new KeywordRetrievalStrategy();
         this.dependencyStrategy = new DependencyRetrievalStrategy();
         this.embeddingStrategy = new EmbeddingRetrievalStrategy(llmClient);
+        this.useEmbeddings = useEmbeddings;
     }
 
     @Override
     public String getName() {
-        return "Hybrid (Keyword + Dependency + Semantic)";
+        return !useEmbeddings ? "Hybrid (Keyword + Dependency)" : "Hybrid (Keyword + Dependency + Semantic)";
     }
 
     @Override
@@ -42,11 +44,9 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
         // Dobavi rezultate iz obe strategije
         List<CodeElement> keywordResults = keywordStrategy.retrieve(query, index, maxResults * 2);
         List<CodeElement> dependencyResults = dependencyStrategy.retrieve(query, index, maxResults * 2);
-        List<CodeElement> embeddingResults = embeddingStrategy.retrieve(query, index, maxResults * 2);
 
         logger.info("Keyword strategy found {} results", keywordResults.size());
         logger.info("Dependency strategy found {} results", dependencyResults.size());
-        logger.info("Embedding strategy found {} results", embeddingResults.size());
         
         // Kombinuj rezultate sa ponderisanim scorovima
         Map<CodeElement, Double> combinedScores = new HashMap<>();
@@ -54,8 +54,13 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
         // Dodaj rezultate iz svake strategije sa odgovarajućom težinom
         addResultsToScores(combinedScores, keywordResults, keywordWeight);
         addResultsToScores(combinedScores, dependencyResults, dependencyWeight);
-        addResultsToScores(combinedScores, embeddingResults, embeddingWeight);
-        
+
+        if (useEmbeddings) {
+            List<CodeElement> embeddingResults = embeddingStrategy.retrieve(query, index, maxResults * 2);
+            logger.info("Embedding strategy found {} results", embeddingResults.size());
+            addResultsToScores(combinedScores, embeddingResults, embeddingWeight);
+        }
+
         // Primjeni dodatne heuristike
         applyContextualBoosts(query, combinedScores, index);
         

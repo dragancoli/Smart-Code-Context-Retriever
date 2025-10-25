@@ -57,13 +57,28 @@ public class Main {
         printStatistics(codeElements);
 
         // --- DODATA FAZA 2: INDEKSIRANJE ---
+        System.out.println("Do you with to use Embeddings for semantic search? (yes/no): ");
+        Scanner scanner = new Scanner(System.in);
+        String useEmbeddings = scanner.nextLine().trim().toLowerCase();
+        boolean enableEmbeddings = useEmbeddings.equals("yes") || useEmbeddings.equals("y");
+        if (enableEmbeddings) {
+            System.out.println("✓ Embeddings will be used for semantic search.");
+        } else {
+            System.out.println("✓ Embeddings will NOT be used. Search will be based on keyword matching.");
+        }
         System.out.println("\n[2/4] Building code index...");
         codeIndex = new CodeIndex(codeElements);
         System.out.println("✓ Index built successfully (" + codeIndex.size() + " elements).");
 
         // === DODATA FAZA 2b: GENERISANJE EMBEDINGA ===
-        System.out.println("\n[2b/4] Generating code embeddings...");
+        if(!enableEmbeddings) {
+            System.out.println("Skipping embedding generation as per user choice.");
+        } else {
+            System.out.println("\n[2b/4] Generating code embeddings...");
+        }
 
+        // === DODATA FAZA 3: INICIJALIZACIJA SERVISA ===
+        System.out.println("\n[3/4] Initializing services...");
         // Učitaj Google API ključ iz environment varijable
         String googleApiKey = System.getenv("GOOGLE_API_KEY");
         llmClient = new GeminiClient(googleApiKey); // KORISTIMO NOVI KLIJENT
@@ -78,18 +93,16 @@ public class Main {
         }
 
         try {
-            generateEmbeddingsForIndex(codeIndex, llmClient); // llmClient mora biti inicijalizovan RANIJE
+            if(enableEmbeddings)
+                generateEmbeddingsForIndex(codeIndex, llmClient); // llmClient mora biti inicijalizovan RANIJE
         } catch (Exception e) {
             logger.error("Failed to generate embeddings", e);
             System.out.println("! Greška pri generisanju embedinga: " + e.getMessage());
             // Možemo nastaviti bez embedinga, ali pretraga neće biti semantička
         }
 
-        // === DODATA FAZA 3: INICIJALIZACIJA SERVISA ===
-        System.out.println("\n[3/4] Initializing services...");
-
         // Koristimo najbolju strategiju - Hibridnu
-        retrievalStrategy = new HybridRetrievalStrategy(llmClient);
+        retrievalStrategy = new HybridRetrievalStrategy(llmClient, enableEmbeddings);
         logger.info("Using retrieval strategy: {}", retrievalStrategy.getName());
 
         // --- AŽURIRANA FAZA 4: INTERAKTIVNI MOD ---
@@ -101,7 +114,6 @@ public class Main {
         System.out.println("  list            - Izlistava prvih 50 elemenata koda");
         System.out.println("  quit            - Izlaz\n");
 
-        Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.print("> ");
             String input = scanner.nextLine().trim();
