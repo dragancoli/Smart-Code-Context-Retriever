@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException; // Importovan
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -18,8 +19,12 @@ import java.util.concurrent.TimeUnit;
 public class OpenAIClient implements LLMClient {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenAIClient.class);
+
     private static final String API_URL = "https://api.openai.com/v1/chat/completions";
     private static final String MODEL = "gpt-3.5-turbo"; // ili "gpt-4" ako imaš access
+
+    private static final String EMBEDDING_API_URL = "https://api.openai.com/v1/embeddings";
+    private static final String EMBEDDING_MODEL = "text-embedding-ada-002";
 
     private final String apiKey;
     private final OkHttpClient httpClient;
@@ -136,5 +141,75 @@ public class OpenAIClient implements LLMClient {
     public String getProviderName() {
         // --- DODAT KOD ---
         return "OpenAI (" + MODEL + ")";
+    }
+
+    /**
+     * Pretvara listu stringova u listu embeding vektora
+     * * @param texts Lista tekstova (npr. sadržaj metoda)
+     *
+     * @return Lista embeding (double[]) vektora
+     * @throws Exception Ako dođe do greške
+     */
+    @Override
+    public List<double[]> generateEmbeddings(List<String> texts) throws Exception {
+        if (!isAvailable()) {
+            throw new IllegalStateException("OpenAI API key not configured");
+        }
+
+        logger.info("Generating {} embeddings using model {}", texts.size(), EMBEDDING_MODEL);
+
+        // OpenAI prima listu tekstova direktno
+        // Struktura: {"input": ["text1", "text2", ...], "model": "..."}
+
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("model", EMBEDDING_MODEL);
+
+        JsonArray inputArray = new JsonArray();
+        for (String text : texts) {
+            inputArray.add(text);
+        }
+        requestBody.add("input", inputArray);
+
+        // Kreiraj HTTP request
+        String jsonBody = gson.toJson(requestBody);
+        RequestBody body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-8"));
+
+        Request request = new Request.Builder()
+                .url(EMBEDDING_API_URL) // Koristi URL za embedinge
+                .header("Authorization", "Bearer " + this.apiKey)
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "No response body";
+
+            if (!response.isSuccessful()) {
+                logger.error("OpenAI Embedding API request failed: {} - {}", response.code(), responseBody);
+                throw new IOException("Unexpected code " + response.code() + " - " + responseBody);
+            }
+
+            // Parsiraj odgovor
+            // Struktura: {"data": [{"embedding": [0.1, 0.2, ...]}, ...], ...}
+            JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
+            JsonArray dataArray = jsonResponse.getAsJsonArray("data");
+
+            List<double[]> embeddingsList = new ArrayList<>();
+            for (int i = 0; i < dataArray.size(); i++) {
+                JsonObject embeddingData = dataArray.get(i).getAsJsonObject();
+                JsonArray valuesArray = embeddingData.getAsJsonArray("embedding");
+
+                double[] embedding = new double[valuesArray.size()];
+                for (int j = 0; j < valuesArray.size(); j++) {
+                    embedding[j] = valuesArray.get(j).getAsDouble();
+                }
+                embeddingsList.add(embedding);
+            }
+
+            return embeddingsList;
+
+        } catch (IOException e) {
+            logger.error("Error during OpenAI Embedding API call", e);
+            throw new Exception("Failed to communicate with OpenAI Embedding API", e);
+        }
     }
 }

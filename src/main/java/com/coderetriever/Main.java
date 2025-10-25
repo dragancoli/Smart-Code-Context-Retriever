@@ -63,20 +63,6 @@ public class Main {
 
         // === DODATA FAZA 2b: GENERISANJE EMBEDINGA ===
         System.out.println("\n[2b/4] Generating code embeddings...");
-        try {
-            generateEmbeddingsForIndex(codeIndex, llmClient); // llmClient mora biti inicijalizovan RANIJE
-        } catch (Exception e) {
-            logger.error("Failed to generate embeddings", e);
-            System.out.println("! Greška pri generisanju embedinga: " + e.getMessage());
-            // Možemo nastaviti bez embedinga, ali pretraga neće biti semantička
-        }
-
-        // === DODATA FAZA 3: INICIJALIZACIJA SERVISA ===
-        System.out.println("\n[3/4] Initializing services...");
-
-        // Koristimo najbolju strategiju - Hibridnu
-        retrievalStrategy = new HybridRetrievalStrategy();
-        logger.info("Using retrieval strategy: {}", retrievalStrategy.getName());
 
         // Učitaj Google API ključ iz environment varijable
         String googleApiKey = System.getenv("GOOGLE_API_KEY");
@@ -90,6 +76,21 @@ public class Main {
             logger.info("LLM Client initialized: {}", llmClient.getProviderName());
             System.out.println("✓ LLM Client spreman: " + llmClient.getProviderName());
         }
+
+        try {
+            generateEmbeddingsForIndex(codeIndex, llmClient); // llmClient mora biti inicijalizovan RANIJE
+        } catch (Exception e) {
+            logger.error("Failed to generate embeddings", e);
+            System.out.println("! Greška pri generisanju embedinga: " + e.getMessage());
+            // Možemo nastaviti bez embedinga, ali pretraga neće biti semantička
+        }
+
+        // === DODATA FAZA 3: INICIJALIZACIJA SERVISA ===
+        System.out.println("\n[3/4] Initializing services...");
+
+        // Koristimo najbolju strategiju - Hibridnu
+        retrievalStrategy = new HybridRetrievalStrategy(llmClient);
+        logger.info("Using retrieval strategy: {}", retrievalStrategy.getName());
 
         // --- AŽURIRANA FAZA 4: INTERAKTIVNI MOD ---
         System.out.println("\n[4/4] Starting Interactive Mode...");

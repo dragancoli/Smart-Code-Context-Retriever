@@ -30,6 +30,7 @@ public class CodeElement {
     }
 
     public enum ElementType {
+        // Java tipovi
         CLASS,
         METHOD,
         FIELD,

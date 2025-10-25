@@ -2,6 +2,7 @@ package com.coderetriever.retrival;
 
 import com.coderetriever.indexer.CodeIndex;
 import com.coderetriever.model.CodeElement;
+import com.coderetriever.llm.LLMClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,19 +19,22 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
     
     private final KeywordRetrievalStrategy keywordStrategy;
     private final DependencyRetrievalStrategy dependencyStrategy;
+    private final EmbeddingRetrievalStrategy embeddingStrategy;
     
     // Težine za različite strategije
-    private final double keywordWeight = 0.6;
-    private final double dependencyWeight = 0.4;
+    private final double keywordWeight = 0.3;
+    private final double dependencyWeight = 0.2;
+    private final double embeddingWeight = 0.5;
 
-    public HybridRetrievalStrategy() {
+    public HybridRetrievalStrategy(LLMClient llmClient) {
         this.keywordStrategy = new KeywordRetrievalStrategy();
         this.dependencyStrategy = new DependencyRetrievalStrategy();
+        this.embeddingStrategy = new EmbeddingRetrievalStrategy(llmClient);
     }
 
     @Override
     public String getName() {
-        return "Hybrid (Keyword + Dependency)";
+        return "Hybrid (Keyword + Dependency + Semantic)";
     }
 
     @Override
@@ -38,29 +42,19 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
         // Dobavi rezultate iz obe strategije
         List<CodeElement> keywordResults = keywordStrategy.retrieve(query, index, maxResults * 2);
         List<CodeElement> dependencyResults = dependencyStrategy.retrieve(query, index, maxResults * 2);
-        
+        List<CodeElement> embeddingResults = embeddingStrategy.retrieve(query, index, maxResults * 2);
+
         logger.info("Keyword strategy found {} results", keywordResults.size());
         logger.info("Dependency strategy found {} results", dependencyResults.size());
+        logger.info("Embedding strategy found {} results", embeddingResults.size());
         
         // Kombinuj rezultate sa ponderisanim scorovima
         Map<CodeElement, Double> combinedScores = new HashMap<>();
-        
-        // Dodaj keyword rezultate
-        for (int i = 0; i < keywordResults.size(); i++) {
-            CodeElement element = keywordResults.get(i);
-            double positionScore = 1.0 - (i / (double) keywordResults.size());
-            combinedScores.put(element, positionScore * keywordWeight);
-        }
-        
-        // Dodaj dependency rezultate
-        for (int i = 0; i < dependencyResults.size(); i++) {
-            CodeElement element = dependencyResults.get(i);
-            double positionScore = 1.0 - (i / (double) dependencyResults.size());
-            double depScore = positionScore * dependencyWeight;
-            
-            // Ako već postoji, saberi scorove
-            combinedScores.merge(element, depScore, Double::sum);
-        }
+
+        // Dodaj rezultate iz svake strategije sa odgovarajućom težinom
+        addResultsToScores(combinedScores, keywordResults, keywordWeight);
+        addResultsToScores(combinedScores, dependencyResults, dependencyWeight);
+        addResultsToScores(combinedScores, embeddingResults, embeddingWeight);
         
         // Primjeni dodatne heuristike
         applyContextualBoosts(query, combinedScores, index);
@@ -127,6 +121,18 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
             }
             
             entry.setValue(entry.getValue() * boost);
+        }
+    }
+
+    /**
+     * Dodaje rezultate u mapu skorova sa odgovarajućom težinom
+     */
+    public void addResultsToScores(Map<CodeElement, Double> combinedScores, List<CodeElement> results, double weight) {
+        for (int i = 0; i < results.size(); i++) {
+            CodeElement element = results.get(i);
+            double positionScore = 1.0 - (i / (double) results.size());
+            double weightedScore = positionScore * weight;
+            combinedScores.merge(element, weightedScore, Double::sum);
         }
     }
 

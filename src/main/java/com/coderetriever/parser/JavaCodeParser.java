@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 /**
  * Parser za Java kod koji ekstraktuje klase, metode i fieldove
  */
-public class JavaCodeParser {
+public class JavaCodeParser implements CodeParser {
     private static final Logger logger = LoggerFactory.getLogger(JavaCodeParser.class);
     private final JavaParser javaParser;
 
@@ -201,5 +201,10 @@ public class JavaCodeParser {
         }
         
         return sb.toString();
+    }
+
+    @Override
+    public boolean supportsFile(Path file) {
+        return file.toString().endsWith(".java");
     }
 }
