@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -22,7 +23,10 @@ public class GeminiClient implements LLMClient {
     // Model koji ćemo koristiti
     private static final String MODEL = "gemini-pro-latest";
     private static final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent";
-    
+
+    private static final String EMBEDDING_MODEL = "embedding-001";
+    private static final String EMBEDDING_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/" + EMBEDDING_MODEL + ":batchEmbedContents";
+
     private final String apiKey;
     private final OkHttpClient httpClient;
     private final Gson gson;
@@ -164,5 +168,81 @@ public class GeminiClient implements LLMClient {
     @Override
     public String getProviderName() {
         return "Google (Gemini Pro)";
+    }
+
+    @Override
+    public List<double[]> generateEmbeddings(List<String> texts) throws Exception {
+        if (!isAvailable()) {
+            throw new IllegalStateException("Google API key not configured");
+        }
+
+        logger.info("Generating {} embeddings using model {}", texts.size(), EMBEDDING_MODEL);
+
+        // Kreiraj request body
+        // Struktura: {"requests": [{"model": "...", "content": {"parts": [{"text": "..."}]}}]}
+        JsonArray requestsArray = new JsonArray();
+        for (String text : texts) {
+            JsonObject textPart = new JsonObject();
+            textPart.addProperty("text", text);
+
+            JsonObject content = new JsonObject();
+
+            // Ispravka:
+            JsonArray partsArray = new JsonArray();
+            partsArray.add(textPart);
+            content.add("parts", partsArray);
+
+            JsonObject embedRequest = new JsonObject();
+            embedRequest.addProperty("model", "models/" + EMBEDDING_MODEL); // Puno ime modela
+            embedRequest.add("content", content);
+
+            requestsArray.add(embedRequest);
+        }
+
+        JsonObject requestBody = new JsonObject();
+        requestBody.add("requests", requestsArray);
+
+        // Kreiraj HTTP request
+        String jsonBody = gson.toJson(requestBody);
+        RequestBody body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-8"));
+
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(EMBEDDING_API_URL).newBuilder();
+        urlBuilder.addQueryParameter("key", this.apiKey);
+
+        Request request = new Request.Builder()
+                .url(urlBuilder.build())
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "No response body";
+
+            if (!response.isSuccessful()) {
+                logger.error("Gemini Embedding API request failed: {} - {}", response.code(), responseBody);
+                throw new IOException("Unexpected code " + response.code() + " - " + responseBody);
+            }
+
+            // Parsiraj odgovor: {"embeddings": [{"values": [0.1, 0.2, ...]}, ...]}
+            JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
+            JsonArray embeddingsArray = jsonResponse.getAsJsonArray("embeddings");
+
+            List<double[]> embeddingsList = new ArrayList<>();
+            for (int i = 0; i < embeddingsArray.size(); i++) {
+                JsonObject embeddingObj = embeddingsArray.get(i).getAsJsonObject();
+                JsonArray valuesArray = embeddingObj.getAsJsonArray("values");
+
+                double[] embedding = new double[valuesArray.size()];
+                for (int j = 0; j < valuesArray.size(); j++) {
+                    embedding[j] = valuesArray.get(j).getAsDouble();
+                }
+                embeddingsList.add(embedding);
+            }
+
+            return embeddingsList;
+
+        } catch (IOException e) {
+            logger.error("Error during Gemini Embedding API call", e);
+            throw new Exception("Failed to communicate with Gemini Embedding API", e);
+        }
     }
 }

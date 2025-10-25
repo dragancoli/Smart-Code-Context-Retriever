@@ -27,4 +27,12 @@ public interface LLMClient {
      * Vraća ime LLM provider-a
      */
     String getProviderName();
+
+    /**
+     * Pretvara listu stringova u listu embeding vektora
+     * * @param texts Lista tekstova (npr. sadržaj metoda)
+     * @return Lista embeding (double[]) vektora
+     * @throws Exception Ako dođe do greške
+     */
+    List<double[]> generateEmbeddings(List<String> texts) throws Exception;
 }

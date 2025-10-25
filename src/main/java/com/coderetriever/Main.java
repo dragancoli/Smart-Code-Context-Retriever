@@ -61,6 +61,16 @@ public class Main {
         codeIndex = new CodeIndex(codeElements);
         System.out.println("✓ Index built successfully (" + codeIndex.size() + " elements).");
 
+        // === DODATA FAZA 2b: GENERISANJE EMBEDINGA ===
+        System.out.println("\n[2b/4] Generating code embeddings...");
+        try {
+            generateEmbeddingsForIndex(codeIndex, llmClient); // llmClient mora biti inicijalizovan RANIJE
+        } catch (Exception e) {
+            logger.error("Failed to generate embeddings", e);
+            System.out.println("! Greška pri generisanju embedinga: " + e.getMessage());
+            // Možemo nastaviti bez embedinga, ali pretraga neće biti semantička
+        }
+
         // === DODATA FAZA 3: INICIJALIZACIJA SERVISA ===
         System.out.println("\n[3/4] Initializing services...");
 
@@ -285,5 +295,44 @@ public class Main {
         if (elements.size() > 50) {
             System.out.println("... i još " + (elements.size() - 50));
         }
+    }
+
+    /**
+     * Prolazi kroz sve elemente u indeksu i generiše embedinge za njih
+     */
+    private static void generateEmbeddingsForIndex(CodeIndex index, LLMClient client) throws Exception {
+        if (!client.isAvailable()) {
+            throw new IllegalStateException("LLM Client not available for generating embeddings.");
+        }
+
+        List<CodeElement> elements = index.getAllElements();
+        // Kreiraj listu tekstova za koje tražimo embedinge
+        List<String> textsToEmbed = elements.stream()
+                .map(CodeElement::toContextString) // Koristimo reprezentaciju koda
+                .toList();
+
+        // Gemini API je optimizovan za batch-eve (pakete)
+        // Podelićemo u pakete od npr. 100
+        int batchSize = 100;
+        int elementsProcessed = 0;
+
+        for (int i = 0; i < textsToEmbed.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, textsToEmbed.size());
+            List<String> batchTexts = textsToEmbed.subList(i, end);
+
+            // Pozovi API
+            List<double[]> embeddings = client.generateEmbeddings(batchTexts);
+
+            // Dodeli embedinge nazad CodeElement objektima
+            for (int j = 0; j < embeddings.size(); j++) {
+                CodeElement element = elements.get(i + j);
+                element.setEmbedding(embeddings.get(j));
+            }
+
+            elementsProcessed += batchTexts.size();
+            System.out.println("✓ Generated embeddings for " + elementsProcessed + "/" + elements.size() + " elements...");
+        }
+
+        logger.info("Successfully generated and set embeddings for all {} elements.", elements.size());
     }
 }

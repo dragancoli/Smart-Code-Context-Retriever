@@ -9,7 +9,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Hybrid strategija koja kombinuje keyword i dependency pristupe
+ * Hybrid strategija koja kombinuje keyword, dependency i embedding pristupe
  * Koristi weighted scoring za najbolje rezultate
  */
 public class HybridRetrievalStrategy implements RetrievalStrategy {
