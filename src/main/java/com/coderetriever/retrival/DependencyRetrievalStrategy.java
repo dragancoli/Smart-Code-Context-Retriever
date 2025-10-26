@@ -23,18 +23,15 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
 
     @Override
     public List<CodeElement> retrieve(String query, CodeIndex index, int maxResults) {
-        // Prvo nađi početne kandidate keyword searchom
         List<CodeElement> seedElements = findSeedElements(query, index);
         
         if (seedElements.isEmpty()) {
             logger.warn("No seed elements found for query: {}", query);
             return Collections.emptyList();
         }
-        
-        // Proširi sa related elementima kroz dependency graph
+
         Set<CodeElement> relatedElements = expandThroughDependencies(seedElements, index);
-        
-        // Score based on distance from seed elements
+
         Map<CodeElement, Double> scores = scoreByProximity(seedElements, relatedElements);
         
         return scores.entrySet().stream()
@@ -45,7 +42,6 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
     }
 
     private List<CodeElement> findSeedElements(String query, CodeIndex index) {
-        // Jednostavna keyword pretraga za početne elemente
         List<CodeElement> results = index.searchByKeywords(query);
         return results.stream().limit(3).collect(Collectors.toList());
     }
@@ -55,7 +51,7 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
         Queue<CodeElement> toProcess = new LinkedList<>(seeds);
         Set<String> visited = new HashSet<>();
         
-        int maxDepth = 2; // Ograniči dubinu da ne eksplodira
+        int maxDepth = 2;
         Map<String, Integer> depthMap = new HashMap<>();
         
         for (CodeElement seed : seeds) {
@@ -71,8 +67,7 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
             
             int currentDepth = depthMap.get(currentId);
             if (currentDepth >= maxDepth) continue;
-            
-            // Nađi dependencies (šta ovaj element koristi)
+
             Set<CodeElement> dependencies = index.findDependencies(currentId);
             for (CodeElement dep : dependencies) {
                 if (!visited.contains(dep.getId())) {
@@ -81,8 +76,7 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
                     toProcess.offer(dep);
                 }
             }
-            
-            // Nađi dependents (ko koristi ovaj element)
+
             Set<CodeElement> dependents = index.findDependents(currentId);
             for (CodeElement dependent : dependents) {
                 if (!visited.contains(dependent.getId())) {
@@ -91,8 +85,7 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
                     toProcess.offer(dependent);
                 }
             }
-            
-            // Dodaj siblings (elementi iz istog package-a)
+
             List<CodeElement> siblings = index.findSiblings(current);
             for (CodeElement sibling : siblings.stream().limit(3).toList()) {
                 if (!visited.contains(sibling.getId())) {
@@ -112,22 +105,19 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
         
         for (CodeElement element : related) {
             double score = 0.0;
-            
-            // Seed elementi dobijaju najviši score
+
             if (seeds.contains(element)) {
                 score = 10.0;
             } else {
-                // Score based on connection strength
                 for (CodeElement seed : seeds) {
                     if (areDirectlyConnected(element, seed)) {
                         score += 5.0;
                     } else {
-                        score += 2.0; // Indirect connection
+                        score += 2.0;
                     }
                 }
             }
-            
-            // Bonus za različite tipove
+
             if (element.getType() == CodeElement.ElementType.CLASS) {
                 score *= 1.3;
             } else if (element.getType() == CodeElement.ElementType.METHOD) {
@@ -141,7 +131,6 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
     }
 
     private boolean areDirectlyConnected(CodeElement a, CodeElement b) {
-        // Check if one depends on the other
         return a.getDependencies().contains(b.getName()) ||
                b.getDependencies().contains(a.getName()) ||
                (a.getPackageName() != null && 
@@ -150,7 +139,6 @@ public class DependencyRetrievalStrategy implements RetrievalStrategy {
 
     @Override
     public double calculateRelevanceScore(String query, CodeElement element) {
-        // Simple heuristic
         return element.getDependencies().isEmpty() ? 0.3 : 0.7;
     }
 }

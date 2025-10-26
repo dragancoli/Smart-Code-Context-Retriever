@@ -18,8 +18,7 @@ public class CodeElement {
     private String packageName;
     private List<String> dependencies;
     private String javadoc;
-    
-    // Embedding vector (biće popunjen kasnije)
+
     private double[] embedding;
 
     public CodeElement(String id, ElementType type, String name) {
@@ -38,7 +37,6 @@ public class CodeElement {
         ENUM
     }
 
-    // Getters i Setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 

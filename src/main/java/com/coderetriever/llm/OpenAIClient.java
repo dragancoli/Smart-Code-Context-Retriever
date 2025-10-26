@@ -21,7 +21,7 @@ public class OpenAIClient implements LLMClient {
     private static final Logger logger = LoggerFactory.getLogger(OpenAIClient.class);
 
     private static final String API_URL = "https://api.openai.com/v1/chat/completions";
-    private static final String MODEL = "gpt-3.5-turbo"; // ili "gpt-4" ako imaš access
+    private static final String MODEL = "gpt-3.5-turbo";
 
     private static final String EMBEDDING_API_URL = "https://api.openai.com/v1/embeddings";
     private static final String EMBEDDING_MODEL = "text-embedding-ada-002";
@@ -46,17 +46,13 @@ public class OpenAIClient implements LLMClient {
             throw new IllegalStateException("OpenAI API key not configured");
         }
 
-        // Konstruiši prompt sa kontekstom
         logger.info("Sending query to OpenAI (context size: {} elements)", context.size());
 
-        // Kreiraj request body
         JsonObject requestBody = new JsonObject();
         requestBody.addProperty("model", MODEL);
         requestBody.addProperty("temperature", 0.7);
 
-        // --- POČETAK DODATOG KODA ---
 
-        // Sastavi kontekst string
         StringBuilder contextString = new StringBuilder();
         contextString.append("Here is the relevant code context from the project:\n\n");
         for (CodeElement element : context) {
@@ -64,25 +60,20 @@ public class OpenAIClient implements LLMClient {
             contextString.append("--------------------\n");
         }
 
-        // Sastavi poruke
         JsonArray messages = new JsonArray();
 
-        // 1. System message (definiše ulogu AI)
         JsonObject systemMessage = new JsonObject();
         systemMessage.addProperty("role", "system");
         systemMessage.addProperty("content", "You are an expert Java programming assistant. Your task is to answer questions about a user's codebase. Use the provided code context to give a precise and helpful answer.");
         messages.add(systemMessage);
 
-        // 2. User message (sadrži kontekst i korisnički query)
         JsonObject userMessage = new JsonObject();
         userMessage.addProperty("role", "user");
         userMessage.addProperty("content", contextString.toString() + "\n\nUser Query: " + query);
         messages.add(userMessage);
 
-        // Dodaj poruke u request body
         requestBody.add("messages", messages);
 
-        // Kreiraj HTTP request
         String jsonBody = gson.toJson(requestBody);
         RequestBody body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-8"));
 
@@ -92,7 +83,6 @@ public class OpenAIClient implements LLMClient {
                 .post(body)
                 .build();
 
-        // Izvrši poziv
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String errorBody = response.body() != null ? response.body().string() : "Unknown error";
@@ -102,7 +92,6 @@ public class OpenAIClient implements LLMClient {
 
             String responseBody = response.body().string();
 
-            // Parsiraj odgovor
             JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
             JsonArray choices = jsonResponse.getAsJsonArray("choices");
             if (choices == null || choices.size() == 0) {
@@ -115,14 +104,12 @@ public class OpenAIClient implements LLMClient {
                 throw new IOException("Invalid response from OpenAI: No 'content' in message.");
             }
 
-            // Vrati odgovor
             return message.get("content").getAsString();
 
         } catch (IOException e) {
             logger.error("Error during OpenAI API call", e);
             throw new Exception("Failed to communicate with OpenAI API", e);
         }
-        // --- KRAJ DODATOG KODA ---
     }
 
     /**
@@ -130,7 +117,6 @@ public class OpenAIClient implements LLMClient {
      */
     @Override
     public boolean isAvailable() {
-        // --- DODAT KOD ---
         return this.apiKey != null && !this.apiKey.isEmpty();
     }
 
@@ -139,7 +125,6 @@ public class OpenAIClient implements LLMClient {
      */
     @Override
     public String getProviderName() {
-        // --- DODAT KOD ---
         return "OpenAI (" + MODEL + ")";
     }
 
@@ -170,7 +155,6 @@ public class OpenAIClient implements LLMClient {
         }
         requestBody.add("input", inputArray);
 
-        // Kreiraj HTTP request
         String jsonBody = gson.toJson(requestBody);
         RequestBody body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-8"));
 
@@ -188,8 +172,6 @@ public class OpenAIClient implements LLMClient {
                 throw new IOException("Unexpected code " + response.code() + " - " + responseBody);
             }
 
-            // Parsiraj odgovor
-            // Struktura: {"data": [{"embedding": [0.1, 0.2, ...]}, ...], ...}
             JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
             JsonArray dataArray = jsonResponse.getAsJsonArray("data");
 

@@ -17,11 +17,9 @@ public class CodeIndex {
     private final Map<String, CodeElement> elementById;
     private final Map<String, List<CodeElement>> elementsByType;
     private final Map<String, List<CodeElement>> elementsByPackage;
-    
-    // Inverted index za keyword search
+
     private final Map<String, Set<String>> wordToElementIds;
-    
-    // Dependency graph
+
     private final Map<String, Set<String>> dependencyGraph;
 
     public CodeIndex(List<CodeElement> elements) {
@@ -38,25 +36,20 @@ public class CodeIndex {
 
     private void buildIndex() {
         for (CodeElement element : allElements) {
-            // ID index
             elementById.put(element.getId(), element);
-            
-            // Type index
+
             elementsByType
                 .computeIfAbsent(element.getType().name(), k -> new ArrayList<>())
                 .add(element);
-            
-            // Package index
+
             if (element.getPackageName() != null) {
                 elementsByPackage
                     .computeIfAbsent(element.getPackageName(), k -> new ArrayList<>())
                     .add(element);
             }
-            
-            // Keyword index (inverted index)
+
             indexKeywords(element);
-            
-            // Dependency graph
+
             buildDependencyGraph(element);
         }
     }
@@ -72,26 +65,21 @@ public class CodeIndex {
 
     private Set<String> extractWords(CodeElement element) {
         Set<String> words = new HashSet<>();
-        
-        // Iz imena
+
         words.addAll(splitCamelCase(element.getName()));
-        
-        // Iz signature
+
         if (element.getSignature() != null) {
             words.addAll(Arrays.asList(element.getSignature().split("\\W+")));
         }
-        
-        // Iz javadoc
+
         if (element.getJavadoc() != null) {
             words.addAll(Arrays.asList(element.getJavadoc().split("\\W+")));
         }
-        
-        // Iz sadržaja (ograničeno da ne bude previše)
+
         if (element.getContent() != null && element.getContent().length() < 1000) {
             words.addAll(Arrays.asList(element.getContent().split("\\W+")));
         }
-        
-        // Filtriraj prazne i male stringove
+
         return words.stream()
             .filter(w -> w.length() > 2)
             .collect(Collectors.toSet());
@@ -114,7 +102,6 @@ public class CodeIndex {
         }
     }
 
-    // === Query methods ===
 
     public List<CodeElement> getAllElements() {
         return new ArrayList<>(allElements);
@@ -147,8 +134,7 @@ public class CodeIndex {
                 }
             }
         }
-        
-        // Sortiraj po broju matcheva
+
         return elementScores.entrySet().stream()
             .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
             .map(e -> elementById.get(e.getKey()))

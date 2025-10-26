@@ -26,16 +26,14 @@ public class KeywordRetrievalStrategy implements RetrievalStrategy {
         
         String normalizedQuery = query.toLowerCase().trim();
         String[] queryTerms = normalizedQuery.split("\\s+");
-        
-        // Prvo pokušaj exact match
+
         for (CodeElement element : index.getAllElements()) {
             double score = calculateScore(queryTerms, element);
             if (score > 0) {
                 scores.put(element, score);
             }
         }
-        
-        // Sortiraj po score-u i vrati top N
+
         return scores.entrySet().stream()
             .sorted(Map.Entry.<CodeElement, Double>comparingByValue().reversed())
             .limit(maxResults)
@@ -50,36 +48,30 @@ public class KeywordRetrievalStrategy implements RetrievalStrategy {
         String elementContent = getSearchableContent(element).toLowerCase();
         
         for (String term : queryTerms) {
-            // Exact match u imenu - najviši prioritet
             if (elementName.equals(term)) {
                 score += 10.0;
             } else if (elementName.contains(term)) {
                 score += 5.0;
             }
-            
-            // String similarity sa imenom
+
             double nameSim = similarity.apply(term, elementName);
             if (nameSim > 0.8) {
                 score += nameSim * 3.0;
             }
-            
-            // Keyword u sadržaju
+
             if (elementContent.contains(term)) {
-                // Više bodova ako je term bliže početku
                 int firstOccurrence = elementContent.indexOf(term);
                 double positionFactor = 1.0 - (firstOccurrence / (double) elementContent.length());
                 score += 2.0 * (1.0 + positionFactor);
             }
-            
-            // Bonus za tip elementa
+
             if (element.getType() == CodeElement.ElementType.CLASS) {
                 score *= 1.2; // Klase su obično važnije
             } else if (element.getType() == CodeElement.ElementType.METHOD) {
                 score *= 1.1;
             }
         }
-        
-        // Bonus ako element ima javadoc
+
         if (element.getJavadoc() != null && !element.getJavadoc().isEmpty()) {
             score *= 1.1;
         }
@@ -104,8 +96,7 @@ public class KeywordRetrievalStrategy implements RetrievalStrategy {
         if (element.getJavadoc() != null) {
             sb.append(element.getJavadoc()).append(" ");
         }
-        
-        // Samo prvi dio sadržaja da ne bude preveliko
+
         if (element.getContent() != null) {
             String content = element.getContent();
             sb.append(content.substring(0, Math.min(500, content.length())));

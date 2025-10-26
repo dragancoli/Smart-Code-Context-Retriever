@@ -4,15 +4,11 @@ import com.coderetriever.model.CodeElement;
 import com.coderetriever.parser.JavaCodeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-// --- DODATI NOVI IMPORTI ---
 import com.coderetriever.indexer.CodeIndex;
 import com.coderetriever.llm.LLMClient;
 import com.coderetriever.llm.GeminiClient;
 import com.coderetriever.retrival.HybridRetrievalStrategy;
 import com.coderetriever.retrival.RetrievalStrategy;
-// --------------------------
-
 import java.util.List;
 import java.util.Scanner;
 
@@ -23,12 +19,10 @@ import java.util.Scanner;
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    // --- DODATI REFERENCE NA NOVE KOMPONENTE ---
     private static CodeIndex codeIndex;
     private static RetrievalStrategy retrievalStrategy;
     private static LLMClient llmClient;
-    private static List<CodeElement> lastSearchResults; // Za 'show' komandu
-    // ------------------------------------------
+    private static List<CodeElement> lastSearchResults;
 
     public static void main(String[] args) {
         logger.info("Starting Smart Code Retriever...");
@@ -42,7 +36,6 @@ public class Main {
         String projectPath = args[0];
         logger.info("Analyzing project at: {}", projectPath);
 
-        // Faza 1: Parsiranje koda
         System.out.println("\n[1/4] Parsing Java files...");
         JavaCodeParser parser = new JavaCodeParser();
         List<CodeElement> codeElements = parser.parseDirectory(projectPath);
@@ -56,7 +49,6 @@ public class Main {
         System.out.println("✓ Found " + codeElements.size() + " code elements");
         printStatistics(codeElements);
 
-        // --- DODATA FAZA 2: INDEKSIRANJE ---
         System.out.println("Do you with to use Embeddings for semantic search? (yes/no): ");
         Scanner scanner = new Scanner(System.in);
         String useEmbeddings = scanner.nextLine().trim().toLowerCase();
@@ -70,18 +62,16 @@ public class Main {
         codeIndex = new CodeIndex(codeElements);
         System.out.println("✓ Index built successfully (" + codeIndex.size() + " elements).");
 
-        // === DODATA FAZA 2b: GENERISANJE EMBEDINGA ===
         if(!enableEmbeddings) {
             System.out.println("Skipping embedding generation as per user choice.");
         } else {
             System.out.println("\n[2b/4] Generating code embeddings...");
         }
 
-        // === DODATA FAZA 3: INICIJALIZACIJA SERVISA ===
         System.out.println("\n[3/4] Initializing services...");
-        // Učitaj Google API ključ iz environment varijable
+
         String googleApiKey = System.getenv("GOOGLE_API_KEY");
-        llmClient = new GeminiClient(googleApiKey); // KORISTIMO NOVI KLIJENT
+        llmClient = new GeminiClient(googleApiKey);
 
         if (!llmClient.isAvailable()) {
             logger.warn("GOOGLE_API_KEY environment variable not set. 'ask' command will be disabled.");
@@ -94,18 +84,15 @@ public class Main {
 
         try {
             if(enableEmbeddings)
-                generateEmbeddingsForIndex(codeIndex, llmClient); // llmClient mora biti inicijalizovan RANIJE
+                generateEmbeddingsForIndex(codeIndex, llmClient);
         } catch (Exception e) {
             logger.error("Failed to generate embeddings", e);
             System.out.println("! Greška pri generisanju embedinga: " + e.getMessage());
-            // Možemo nastaviti bez embedinga, ali pretraga neće biti semantička
         }
 
-        // Koristimo najbolju strategiju - Hibridnu
         retrievalStrategy = new HybridRetrievalStrategy(llmClient, enableEmbeddings);
         logger.info("Using retrieval strategy: {}", retrievalStrategy.getName());
 
-        // --- AŽURIRANA FAZA 4: INTERAKTIVNI MOD ---
         System.out.println("\n[4/4] Starting Interactive Mode...");
         System.out.println("Dostupne komande:");
         System.out.println("  search <upit>   - Pronalazi relevantan kod (Strategija: " + retrievalStrategy.getName() + ")");
@@ -127,24 +114,24 @@ public class Main {
                 if (query.isBlank()) {
                     System.out.println("Unesite pojam za pretragu.");
                 } else {
-                    searchWithStrategy(query); // MODIFIKOVAN POZIV
+                    searchWithStrategy(query);
                 }
             } else if (input.startsWith("ask ")) {
                 String query = input.substring(4);
                 if (query.isBlank()) {
                     System.out.println("Unesite pitanje za LLM.");
                 } else {
-                    askLlm(query); // NOVI POZIV
+                    askLlm(query);
                 }
             } else if (input.startsWith("show ")) {
                 try {
                     int index = Integer.parseInt(input.substring(5));
-                    showCodeElement(index); // MODIFIKOVAN POZIV
+                    showCodeElement(index);
                 } catch (NumberFormatException e) {
                     System.out.println("Nevažeći format broja. Koristite 'show <broj>'.");
                 }
             } else if (input.equals("list")) {
-                listCodeElements(codeIndex.getAllElements()); // MODIFIKOVAN POZIV
+                listCodeElements(codeIndex.getAllElements());
             } else if (input.isEmpty()) {
                 // Ignore empty input
             } else {
@@ -185,10 +172,8 @@ public class Main {
         System.out.println("\nPretraga (strategija: " + retrievalStrategy.getName() + ") za: \"" + query + "\"");
         logger.info("Executing search with query: {}", query);
 
-        // Koristi retrievalStrategy i codeIndex
         List<CodeElement> results = retrievalStrategy.retrieve(query, codeIndex, 10);
 
-        // Sačuvaj rezultate da bi 'show' komanda radila
         lastSearchResults = results;
 
         if (results.isEmpty()) {
@@ -216,11 +201,9 @@ public class Main {
 
         System.out.println("\nRazmišljam... (Upit: " + query + ")");
 
-        // Faza 1: Retrieval (pronađi relevantan kontekst)
         System.out.println("1. Pribavljam kontekst iz koda...");
         logger.info("RAG: Retrieving context for query: {}", query);
 
-        // Koristimo strategiju da nađemo top 5 elemenata za kontekst
         List<CodeElement> context = retrievalStrategy.retrieve(query, codeIndex, 5);
 
         if (context.isEmpty()) {
@@ -233,7 +216,6 @@ public class Main {
             }
         }
 
-        // Faza 2: Augmentation & Generation (pošalji upit i kontekst LLM-u)
         try {
             System.out.println("2. Šaljem upit i kontekst na " + llmClient.getProviderName() + "...");
             String answer = llmClient.queryWithContext(query, context);
@@ -319,13 +301,11 @@ public class Main {
         }
 
         List<CodeElement> elements = index.getAllElements();
-        // Kreiraj listu tekstova za koje tražimo embedinge
+
         List<String> textsToEmbed = elements.stream()
-                .map(CodeElement::toContextString) // Koristimo reprezentaciju koda
+                .map(CodeElement::toContextString)
                 .toList();
 
-        // Gemini API je optimizovan za batch-eve (pakete)
-        // Podelićemo u pakete od npr. 100
         int batchSize = 100;
         int elementsProcessed = 0;
 
@@ -333,10 +313,8 @@ public class Main {
             int end = Math.min(i + batchSize, textsToEmbed.size());
             List<String> batchTexts = textsToEmbed.subList(i, end);
 
-            // Pozovi API
             List<double[]> embeddings = client.generateEmbeddings(batchTexts);
 
-            // Dodeli embedinge nazad CodeElement objektima
             for (int j = 0; j < embeddings.size(); j++) {
                 CodeElement element = elements.get(i + j);
                 element.setEmbedding(embeddings.get(j));

@@ -72,20 +72,17 @@ public class JavaCodeParser implements CodeParser {
         String packageName = cu.getPackageDeclaration()
                               .map(pd -> pd.getNameAsString())
                               .orElse("");
-        
-        // Ekstraktuj klase i interface-e
+
         cu.findAll(ClassOrInterfaceDeclaration.class).forEach(cls -> {
             CodeElement element = createClassElement(cls, file.getPath(), packageName);
             elements.add(element);
-            
-            // Ekstraktuj metode iz klase
+
             cls.findAll(MethodDeclaration.class).forEach(method -> {
                 CodeElement methodElement = createMethodElement(method, file.getPath(), 
                                                                 packageName, cls.getNameAsString());
                 elements.add(methodElement);
             });
-            
-            // Ekstraktuj fieldove
+
             cls.findAll(FieldDeclaration.class).forEach(field -> {
                 field.getVariables().forEach(variable -> {
                     CodeElement fieldElement = createFieldElement(field, variable.getNameAsString(),
@@ -120,8 +117,7 @@ public class JavaCodeParser implements CodeParser {
         cls.getJavadoc().ifPresent(javadoc -> 
             element.setJavadoc(javadoc.toText())
         );
-        
-        // Ekstraktuj dependencies (imports, extended classes, implemented interfaces)
+
         cls.getExtendedTypes().forEach(ext -> 
             element.addDependency(ext.getNameAsString())
         );

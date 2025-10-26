@@ -21,8 +21,7 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
     private final DependencyRetrievalStrategy dependencyStrategy;
     private final EmbeddingRetrievalStrategy embeddingStrategy;
     private final boolean useEmbeddings;
-    
-    // Težine za različite strategije
+
     private final double keywordWeight = 0.3;
     private final double dependencyWeight = 0.2;
     private final double embeddingWeight = 0.5;
@@ -41,17 +40,14 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
 
     @Override
     public List<CodeElement> retrieve(String query, CodeIndex index, int maxResults) {
-        // Dobavi rezultate iz obe strategije
         List<CodeElement> keywordResults = keywordStrategy.retrieve(query, index, maxResults * 2);
         List<CodeElement> dependencyResults = dependencyStrategy.retrieve(query, index, maxResults * 2);
 
         logger.info("Keyword strategy found {} results", keywordResults.size());
         logger.info("Dependency strategy found {} results", dependencyResults.size());
-        
-        // Kombinuj rezultate sa ponderisanim scorovima
+
         Map<CodeElement, Double> combinedScores = new HashMap<>();
 
-        // Dodaj rezultate iz svake strategije sa odgovarajućom težinom
         addResultsToScores(combinedScores, keywordResults, keywordWeight);
         addResultsToScores(combinedScores, dependencyResults, dependencyWeight);
 
@@ -61,10 +57,8 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
             addResultsToScores(combinedScores, embeddingResults, embeddingWeight);
         }
 
-        // Primjeni dodatne heuristike
         applyContextualBoosts(query, combinedScores, index);
-        
-        // Sortiraj i vrati top rezultate
+
         List<CodeElement> results = combinedScores.entrySet().stream()
             .sorted(Map.Entry.<CodeElement, Double>comparingByValue().reversed())
             .limit(maxResults)
@@ -85,10 +79,8 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
         for (Map.Entry<CodeElement, Double> entry : scores.entrySet()) {
             CodeElement element = entry.getKey();
             double boost = 1.0;
-            
-            // Boost za query patterns
+
             if (lowerQuery.contains("how") || lowerQuery.contains("explain")) {
-                // Za objašnjenja, preferiraj klase i metode sa javadoc-om
                 if (element.getJavadoc() != null && !element.getJavadoc().isEmpty()) {
                     boost *= 1.5;
                 }
@@ -98,7 +90,6 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
             }
             
             if (lowerQuery.contains("implement") || lowerQuery.contains("add")) {
-                // Za implementacije, preferiraj metode
                 if (element.getType() == CodeElement.ElementType.METHOD) {
                     boost *= 1.4;
                 }
@@ -106,20 +97,17 @@ public class HybridRetrievalStrategy implements RetrievalStrategy {
             
             if (lowerQuery.contains("bug") || lowerQuery.contains("error") || 
                 lowerQuery.contains("fix")) {
-                // Za bugove, preferiraj metode sa exception handling-om
                 if (element.getContent() != null && 
                     (element.getContent().contains("catch") || 
                      element.getContent().contains("throw"))) {
                     boost *= 1.3;
                 }
             }
-            
-            // Boost za kompleksne elemente (više dependencies = važniji)
+
             if (element.getDependencies().size() > 3) {
                 boost *= 1.2;
             }
-            
-            // Boost za elemente koji su često referencirani
+
             Set<CodeElement> dependents = index.findDependents(element.getId());
             if (dependents.size() > 2) {
                 boost *= (1.0 + Math.log(dependents.size()) * 0.1);

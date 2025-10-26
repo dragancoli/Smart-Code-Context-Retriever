@@ -89,7 +89,7 @@ public class EmbeddingRetrievalStrategy implements RetrievalStrategy {
         }
 
         if (normA == 0 || normB == 0) {
-            return 0.0; // Izbegavamo deljenje sa nulom
+            return 0.0;
         }
 
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));

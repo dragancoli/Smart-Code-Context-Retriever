@@ -19,8 +19,7 @@ import java.util.concurrent.TimeUnit;
 public class GeminiClient implements LLMClient {
 
     private static final Logger logger = LoggerFactory.getLogger(GeminiClient.class);
-    
-    // Model koji ćemo koristiti
+
     private static final String MODEL = "gemini-pro-latest";
     private static final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent";
 
@@ -49,8 +48,6 @@ public class GeminiClient implements LLMClient {
 
         logger.info("Sending query to Google Gemini (context size: {} elements)", context.size());
 
-        // Konstruiši prompt. Gemini nema "system" ulogu kao OpenAI,
-        // pa ćemo sve spojiti u jedan veliki user prompt.
         String prompt = buildPrompt(query, context);
 
         // Kreiraj Gemini request body
@@ -69,19 +66,16 @@ public class GeminiClient implements LLMClient {
 
         JsonObject requestBody = new JsonObject();
         requestBody.add("contents", contentsArray);
-        
-        // Dodaj konfiguraciju (opciono, ali korisno)
+
         JsonObject generationConfig = new JsonObject();
         generationConfig.addProperty("temperature", 0.7);
         generationConfig.addProperty("maxOutputTokens", 2048);
         requestBody.add("generationConfig", generationConfig);
 
 
-        // Kreiraj HTTP request
         String jsonBody = gson.toJson(requestBody);
         RequestBody body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-t"));
 
-        // URL mora da sadrži API ključ kao query parametar
         HttpUrl.Builder urlBuilder = HttpUrl.parse(API_URL).newBuilder();
         urlBuilder.addQueryParameter("key", this.apiKey);
         
@@ -90,7 +84,6 @@ public class GeminiClient implements LLMClient {
             .post(body)
             .build();
 
-        // Izvrši poziv
         try (Response response = httpClient.newCall(request).execute()) {
             String responseBody = response.body() != null ? response.body().string() : "No response body";
 
@@ -99,8 +92,6 @@ public class GeminiClient implements LLMClient {
                 throw new IOException("Unexpected code " + response.code() + " - " + responseBody);
             }
 
-            // Parsiraj odgovor
-            // Struktura je: {"candidates": [{"content": {"parts": [{"text": "..."}]}}]}
             JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
             
             if (!jsonResponse.has("candidates")) {
@@ -135,13 +126,11 @@ public class GeminiClient implements LLMClient {
      */
     private String buildPrompt(String query, List<CodeElement> context) {
         StringBuilder prompt = new StringBuilder();
-        
-        // 1. Definiši zadatak (slično system poruci)
+
         prompt.append("You are an expert Java programming assistant.\n");
         prompt.append("Your task is to answer questions about a user's codebase.\n");
         prompt.append("Use the provided code context to give a precise and helpful answer.\n\n");
-        
-        // 2. Dodaj kontekst
+
         prompt.append("=== Relevant Code Context ===\n\n");
         if (context.isEmpty()) {
             prompt.append("No relevant code context was found.\n");
@@ -151,8 +140,7 @@ public class GeminiClient implements LLMClient {
                 prompt.append("--------------------\n");
             }
         }
-        
-        // 3. Dodaj korisnički upit
+
         prompt.append("\n=== User Query ===\n");
         prompt.append(query);
         
@@ -178,8 +166,6 @@ public class GeminiClient implements LLMClient {
 
         logger.info("Generating {} embeddings using model {}", texts.size(), EMBEDDING_MODEL);
 
-        // Kreiraj request body
-        // Struktura: {"requests": [{"model": "...", "content": {"parts": [{"text": "..."}]}}]}
         JsonArray requestsArray = new JsonArray();
         for (String text : texts) {
             JsonObject textPart = new JsonObject();
@@ -187,13 +173,12 @@ public class GeminiClient implements LLMClient {
 
             JsonObject content = new JsonObject();
 
-            // Ispravka:
             JsonArray partsArray = new JsonArray();
             partsArray.add(textPart);
             content.add("parts", partsArray);
 
             JsonObject embedRequest = new JsonObject();
-            embedRequest.addProperty("model", "models/" + EMBEDDING_MODEL); // Puno ime modela
+            embedRequest.addProperty("model", "models/" + EMBEDDING_MODEL);
             embedRequest.add("content", content);
 
             requestsArray.add(embedRequest);
@@ -202,7 +187,6 @@ public class GeminiClient implements LLMClient {
         JsonObject requestBody = new JsonObject();
         requestBody.add("requests", requestsArray);
 
-        // Kreiraj HTTP request
         String jsonBody = gson.toJson(requestBody);
         RequestBody body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-8"));
 
@@ -222,7 +206,6 @@ public class GeminiClient implements LLMClient {
                 throw new IOException("Unexpected code " + response.code() + " - " + responseBody);
             }
 
-            // Parsiraj odgovor: {"embeddings": [{"values": [0.1, 0.2, ...]}, ...]}
             JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
             JsonArray embeddingsArray = jsonResponse.getAsJsonArray("embeddings");
 
